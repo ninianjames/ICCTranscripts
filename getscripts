@@ -1,0 +1,111 @@
+import requests
+import PyPDF2
+import os
+from urllib.parse import urljoin, urlparse
+from bs4 import BeautifulSoup as beautifulsoup
+
+
+def get_urls():
+    urls = []
+    for i in range(317):
+        url = "https://www.icc-cpi.int/case-transcripts?page=" + str(i)
+        if i == 0:
+            continue
+        else:
+            urls.append(url)
+
+    return urls
+
+
+def get_english_court_records(urls):
+    """
+    Visits the ICC website of case transcipts, return a list of URLs to english language court transcripts
+    """
+    english_court_records = []
+    for url in urls:
+        hrefs = []
+        soup = beautifulsoup(requests.get(url).content, "html.parser")
+        for a_tag in soup.find_all("a"):
+            href = a_tag.attrs.get("href")
+            if href == "" or href is None:
+                continue
+            href = urljoin(url, href)
+            hrefs.append(href)
+            if not bool(hrefs):
+                print("There are no links here")
+
+        for href in hrefs:
+            if "court-record" and "eng" in href:
+                english_court_records.append(href)
+
+    return english_court_records
+
+
+def get_pdf_links_of_transcripts(url_list):
+    pdf_links = []
+    for url in url_list:
+        soup = beautifulsoup(requests.get(url).content, "html.parser")
+        for a_tag in soup.find_all("a"):
+            href = a_tag.attrs.get("href")
+            if href == "" or href is None:
+                continue
+            href = urljoin(url, href)
+            if "PDF" in href:
+                pdf_links.append(href)
+
+    return pdf_links
+
+
+def download_pdfs(pdf_list):
+    count = 0
+    for pdf_link in pdf_list:
+        count += 1
+        parsed = urlparse(pdf_link)
+        save_name = parsed.netloc + str(count) + '.pdf'
+        print("Downloading file: ", save_name)
+        response = requests.get(pdf_link)
+        with open(f'[directory]{save_name}', 'wb') as f:
+            f.write(response.content)
+
+
+def search_pdfs():
+    directory = 'yourdirectory'
+    relevant_pdfs = []
+    keyword_list = ["Facebook", "video", "photo", "picture", "image"]
+    for filename in os.listdir(directory):
+        f = os.path.join(directory, filename)
+        if os.path.isfile(f):
+            file_object = open(f, 'rb')
+            pdfreader = PyPDF2.PdfFileReader(file_object)
+            count = pdfreader.numPages
+            for i in range(count):
+                page = pdfreader.getPage(i)
+                text = []
+                text.append(page.extractText())
+
+                for word in keyword_list:
+                    if word in text:
+                        relevant_pdfs.append(filename)
+
+    return relevant_pdfs
+
+
+print("I am going through all of the pages on the ICC Transcripts section and collecting all of the English "
+      "language transripts there")
+
+list_of_court_records = get_english_court_records(get_urls())
+print(f"I searched {len(get_urls())} and"
+      f"I found {len(list_of_court_records)} English language court records on that page")
+
+# print("Now trying to retrieve the PDF links")
+#
+# list_of_pdfs = get_pdf_links_of_transcripts(list_of_court_records)
+# print(f"I found {len(list_of_pdfs)} PDF links from searching those court records")
+#
+# print("Downloading all PDFs before searching")
+#
+# download_pdfs(list_of_pdfs)
+
+# print("Now visiting the online PDFs to perform word searches")
+#
+# print(search_pdfs(list_of_pdfs))
